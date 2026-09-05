@@ -13,7 +13,6 @@ interface Customer {
 }
 
 interface InvoiceItemInput {
-  isPackage: boolean; // Flag untuk mod pakej / per person
   description: string;
   quantity: number;
   unit_price: number;
@@ -50,20 +49,25 @@ export default function NewInvoicePage() {
   const [termDays, setTermDays] = useState<number>(14);
   const [dueDate, setDueDate] = useState<string>("");
 
+  // Mod Pakej Per Person & Cas Penghantaran Terasing
+  const [isPackageMode, setIsPackageMode] = useState<boolean>(true);
+  const [packagePricePerPax, setPackagePricePerPax] = useState<number>(12.0);
+  const [packagePaxCount, setPackagePaxCount] = useState<number>(50);
+  const [deliveryFee, setDeliveryFee] = useState<number>(0);
+
   // Kewangan & Nota
   const [deposit, setDeposit] = useState<number>(0);
   const [notes, setNotes] = useState<string>(
     "Sedap bagitahu kawan, Tak sedap bagitahu kami.🤙 Terima kasih atas urus niaga anda. Bayaran boleh dibuat memalui QR atau Bank Transfer",
   );
 
-  // Item Invois (Sokongan Mod Pakej Per Person)
+  // Item Invois
   const [items, setItems] = useState<InvoiceItemInput[]>([
     {
-      isPackage: true,
       description: "Nasi Putih, Ayam Panggang, Sayur Campur, Air Sirap",
-      quantity: 50,
-      unit_price: 12.0,
-      amount: 600.0,
+      quantity: 1,
+      unit_price: 0,
+      amount: 0,
     },
   ]);
 
@@ -179,7 +183,6 @@ export default function NewInvoicePage() {
         setSelectedCustomerObj(data);
         setSearchCustomer(`${data.name} (${data.phone || "Tiada No"})`);
 
-        // Reset borang modal
         setNewCustomerName("");
         setNewCustomerPhone("");
         setNewCustomerAddress1("");
@@ -203,7 +206,7 @@ export default function NewInvoicePage() {
   const handleItemChange = (
     index: number,
     field: keyof InvoiceItemInput,
-    value: string | number | boolean,
+    value: string | number,
   ) => {
     const updatedItems = [...items];
     const item = { ...updatedItems[index], [field]: value };
@@ -220,7 +223,6 @@ export default function NewInvoicePage() {
     setItems([
       ...items,
       {
-        isPackage: false,
         description: "",
         quantity: 1,
         unit_price: 0,
@@ -235,8 +237,14 @@ export default function NewInvoicePage() {
     }
   };
 
-  const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
-  const totalAmount = subtotal;
+  // Kiraan Subtotal
+  const packageTotal = isPackageMode ? packagePricePerPax * packagePaxCount : 0;
+  const itemsTotal = isPackageMode
+    ? packageTotal
+    : items.reduce((sum, item) => sum + item.amount, 0);
+
+  const subtotal = itemsTotal;
+  const totalAmount = subtotal + Number(deliveryFee);
   const balanceDue = totalAmount - deposit;
 
   // Hantar Invois & Simpan Slug
@@ -251,10 +259,8 @@ export default function NewInvoicePage() {
     setErrorMsg(null);
 
     try {
-      // 1. Penjanaan Slug daripada Nombor Invois (ditukar ke huruf kecil)
       const slug = invoiceNumber.toLowerCase().trim();
 
-      // 2. Simpan Rekod Invois ke Supabase
       const { data: invoiceData, error: invoiceError } = await supabase
         .from("invoices")
         .insert([
@@ -266,6 +272,7 @@ export default function NewInvoicePage() {
             issue_date: issueDate,
             due_date: dueDate,
             subtotal: subtotal,
+            delivery_fee: Number(deliveryFee),
             total_amount: totalAmount,
             deposit_paid: deposit,
             status: balanceDue <= 0 ? "paid" : "unpaid",
@@ -277,14 +284,25 @@ export default function NewInvoicePage() {
 
       if (invoiceError) throw invoiceError;
 
-      // 3. Simpan Setiap Item Invois
-      const itemsToInsert = items.map((item) => ({
-        invoice_id: invoiceData.id,
-        description: item.description,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        amount: item.amount,
-      }));
+      // Simpan item bergantung kepada mod yang dipilih
+      let itemsToInsert = [];
+      if (isPackageMode) {
+        itemsToInsert = items.map((item) => ({
+          invoice_id: invoiceData.id,
+          description: item.description,
+          quantity: packagePaxCount,
+          unit_price: packagePricePerPax,
+          amount: packageTotal,
+        }));
+      } else {
+        itemsToInsert = items.map((item) => ({
+          invoice_id: invoiceData.id,
+          description: item.description,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          amount: item.amount,
+        }));
+      }
 
       const { error: itemsError } = await supabase
         .from("invoice_items")
@@ -292,7 +310,6 @@ export default function NewInvoicePage() {
 
       if (itemsError) throw itemsError;
 
-      // 4. Bina Pautan Menggunakan Slug & Token Keselamatan (8 Aksara Pertama ID)
       const finalSlug = invoiceData.slug || slug;
       const token = invoiceData.id.slice(0, 8);
       const generatedLink = `${window.location.origin}/inv/${finalSlug}?token=${token}`;
@@ -479,67 +496,128 @@ export default function NewInvoicePage() {
 
           {/* ITEM SECTION */}
           <div>
-            <div className="flex justify-between items-center mb-3">
+            <div className="flex flex-wrap justify-between items-center gap-2 mb-3">
               <h2 className="text-lg font-bold text-slate-800">
                 Item / Senarai Pakej
               </h2>
-              <button
-                type="button"
-                onClick={addItemRow}
-                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition"
-              >
-                + Tambah Item
-              </button>
+              <div className="flex items-center gap-3">
+                {/* CHECKBOX MOD PAKEJ PER PERSON */}
+                <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 hover:bg-blue-100 transition">
+                  <input
+                    type="checkbox"
+                    checked={isPackageMode}
+                    onChange={(e) => setIsPackageMode(e.target.checked)}
+                    className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                  />
+                  Kira mengikut Pakej / Per Person (Pax)
+                </label>
+
+                {!isPackageMode && (
+                  <button
+                    type="button"
+                    onClick={addItemRow}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition"
+                  >
+                    + Tambah Item
+                  </button>
+                )}
+              </div>
             </div>
 
+            {/* KAD KIRAAN PAKEJ PER PERSON (DIPAPARKAN APABILA ISPACKAGEMODE = TRUE) */}
+            {isPackageMode && (
+              <div className="p-4 bg-blue-50/70 rounded-xl border border-blue-200 mb-4 space-y-3">
+                <div className="text-xs font-extrabold text-blue-800 uppercase tracking-wider">
+                  Tetapan Pakej Per Person (Pax)
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Harga / Pax (RM)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={packagePricePerPax}
+                      onChange={(e) =>
+                        setPackagePricePerPax(Number(e.target.value))
+                      }
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      Bilangan Pax
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={packagePaxCount}
+                      onChange={(e) =>
+                        setPackagePaxCount(Number(e.target.value))
+                      }
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="sm:text-right pt-2 sm:pt-4">
+                    <span className="block text-[10px] text-slate-500 font-bold uppercase">
+                      Jumlah Pakej
+                    </span>
+                    <span className="text-base font-black text-blue-900">
+                      RM {packageTotal.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SENARAI ITEM */}
             <div className="space-y-4">
               {items.map((item, index) => (
                 <div
                   key={index}
                   className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3"
                 >
-                  {/* TOGGLE MOD: ITEM BIASA / PAKEJ PER PERSON */}
                   <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                     <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
                       Item #{index + 1}
                     </span>
-                    <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200">
-                      <input
-                        type="checkbox"
-                        checked={item.isPackage}
-                        onChange={(e) =>
-                          handleItemChange(index, "isPackage", e.target.checked)
-                        }
-                        className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                      />
-                      Kira mengikut Pakej / Per Person (Pax)
-                    </label>
+                    {!isPackageMode && items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeItemRow(index)}
+                        className="text-xs font-bold text-rose-500 hover:underline"
+                      >
+                        Padam
+                      </button>
+                    )}
                   </div>
 
-                  <div className="flex flex-col md:flex-row gap-3 items-start">
-                    {/* PETAK PENERANGAN MENU */}
-                    <div className="flex-1 w-full">
+                  {isPackageMode ? (
+                    /* SUSUNAN MOD PAKEJ */
+                    <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">
-                        {item.isPackage
-                          ? "Senarai Menu / Lauk Pakej"
-                          : "Penerangan Item"}
+                        Senarai Menu / Lauk Pakej
                       </label>
-                      {item.isPackage ? (
-                        <textarea
-                          rows={2}
-                          placeholder="Contoh: Nasi Putih, Ayam Panggang, Sayur Campur, Air Sirap"
-                          value={item.description}
-                          onChange={(e) =>
-                            handleItemChange(
-                              index,
-                              "description",
-                              e.target.value,
-                            )
-                          }
-                          required
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                        />
-                      ) : (
+                      <textarea
+                        rows={2}
+                        placeholder="Contoh: Nasi Putih, Ayam Panggang, Sayur Campur, Air Sirap"
+                        value={item.description}
+                        onChange={(e) =>
+                          handleItemChange(index, "description", e.target.value)
+                        }
+                        required
+                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      />
+                    </div>
+                  ) : (
+                    /* SUSUNAN MOD STANDARD / BIASA */
+                    <div className="flex flex-col md:flex-row gap-3 items-start">
+                      <div className="flex-1 w-full">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">
+                          Penerangan Item
+                        </label>
                         <input
                           type="text"
                           placeholder="Contoh: Ayam Panggang Seekor"
@@ -554,68 +632,82 @@ export default function NewInvoicePage() {
                           required
                           className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                         />
-                      )}
-                    </div>
+                      </div>
 
-                    {/* KUANTITI / BILANGAN PAX */}
-                    <div className="w-full md:w-28">
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
-                        {item.isPackage ? "Bilangan Pax" : "Kuantiti"}
-                      </label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) =>
-                          handleItemChange(index, "quantity", e.target.value)
-                        }
-                        required
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 outline-none"
-                      />
-                    </div>
+                      <div className="w-full md:w-28">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">
+                          Kuantiti
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) =>
+                            handleItemChange(index, "quantity", e.target.value)
+                          }
+                          required
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 outline-none"
+                        />
+                      </div>
 
-                    {/* HARGA UNIT / HARGA PER PAX */}
-                    <div className="w-full md:w-32">
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
-                        {item.isPackage
-                          ? "Harga / Pax (RM)"
-                          : "Harga Unit (RM)"}
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={item.unit_price}
-                        onChange={(e) =>
-                          handleItemChange(index, "unit_price", e.target.value)
-                        }
-                        required
-                        className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 outline-none"
-                      />
-                    </div>
+                      <div className="w-full md:w-32">
+                        <label className="block text-xs font-semibold text-slate-600 mb-1">
+                          Harga Unit (RM)
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={item.unit_price}
+                          onChange={(e) =>
+                            handleItemChange(
+                              index,
+                              "unit_price",
+                              e.target.value,
+                            )
+                          }
+                          required
+                          className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-800 outline-none"
+                        />
+                      </div>
 
-                    {/* JUMLAH KIRAAN */}
-                    <div className="w-full md:w-28 text-right pt-2 md:pt-6">
-                      <span className="block text-[10px] text-slate-400 font-bold uppercase">
-                        Jumlah
-                      </span>
-                      <span className="text-sm font-black text-slate-900">
-                        RM {item.amount.toFixed(2)}
-                      </span>
+                      <div className="w-full md:w-28 text-right pt-2 md:pt-6">
+                        <span className="block text-[10px] text-slate-400 font-bold uppercase">
+                          Jumlah
+                        </span>
+                        <span className="text-sm font-black text-slate-900">
+                          RM {item.amount.toFixed(2)}
+                        </span>
+                      </div>
                     </div>
-
-                    {/* BUTANG PADAM */}
-                    {items.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeItemRow(index)}
-                        className="pt-2 md:pt-6 text-xs font-bold text-rose-500 hover:underline shrink-0"
-                      >
-                        Padam
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* KAD CAS PENGHANTARAN (TERASING) */}
+          <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200 space-y-2">
+            <div className="flex justify-between items-center">
+              <label className="block text-xs font-extrabold text-amber-900 uppercase tracking-wider">
+                🚚 Cas Penghantaran (Delivery Fee)
+              </label>
+              <span className="text-xs text-amber-700 font-semibold">
+                Kad Terasing
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={deliveryFee}
+                onChange={(e) => setDeliveryFee(Number(e.target.value))}
+                className="w-full md:w-48 p-2.5 bg-white border border-amber-300 rounded-lg text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              <span className="text-xs text-slate-500">
+                Langkan 0 jika tiada cas penghantaran.
+              </span>
             </div>
           </div>
 
@@ -636,8 +728,12 @@ export default function NewInvoicePage() {
             </div>
             <div className="w-full md:w-1/2 bg-slate-50 p-4 rounded-xl border border-slate-200 text-right space-y-3">
               <div className="flex justify-between text-slate-600 text-sm">
-                <span>Subtotal:</span>
+                <span>Subtotal Item:</span>
                 <span>RM {subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-slate-600 text-sm">
+                <span>Cas Penghantaran:</span>
+                <span>RM {Number(deliveryFee).toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-slate-600 font-medium">
