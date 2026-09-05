@@ -287,12 +287,13 @@ export default function NewInvoicePage() {
       // Simpan item bergantung kepada mod yang dipilih
       let itemsToInsert = [];
       if (isPackageMode) {
-        itemsToInsert = items.map((item) => ({
+        // Dalam mod pakej: Item pertama membawa maklumat harga & pax, manakala item seterusnya berfungsi sebagai senarai perincian paparan sahaja
+        itemsToInsert = items.map((item, idx) => ({
           invoice_id: invoiceData.id,
           description: item.description,
-          quantity: packagePaxCount,
-          unit_price: packagePricePerPax,
-          amount: packageTotal,
+          quantity: idx === 0 ? packagePaxCount : 1,
+          unit_price: idx === 0 ? packagePricePerPax : 0,
+          amount: idx === 0 ? packageTotal : 0,
         }));
       } else {
         itemsToInsert = items.map((item) => ({
@@ -512,15 +513,14 @@ export default function NewInvoicePage() {
                   Kira mengikut Pakej / Per Person (Pax)
                 </label>
 
-                {!isPackageMode && (
-                  <button
-                    type="button"
-                    onClick={addItemRow}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition"
-                  >
-                    + Tambah Item
-                  </button>
-                )}
+                {/* BUTANG TAMBAH ITEM (SENTIASA AKTIF) */}
+                <button
+                  type="button"
+                  onClick={addItemRow}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-lg transition"
+                >
+                  + Tambah Item
+                </button>
               </div>
             </div>
 
@@ -581,9 +581,11 @@ export default function NewInvoicePage() {
                 >
                   <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                     <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider">
-                      Item #{index + 1}
+                      {isPackageMode
+                        ? `Menu / Lauk #${index + 1}`
+                        : `Item #${index + 1}`}
                     </span>
-                    {!isPackageMode && items.length > 1 && (
+                    {items.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removeItemRow(index)}
@@ -595,14 +597,14 @@ export default function NewInvoicePage() {
                   </div>
 
                   {isPackageMode ? (
-                    /* SUSUNAN MOD PAKEJ */
+                    /* SUSUNAN MOD PAKEJ (SEKADAR PAPARAN LIST MENU) */
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1">
-                        Senarai Menu / Lauk Pakej
+                        Penerangan Menu / Lauk / Item Paparan
                       </label>
-                      <textarea
-                        rows={2}
-                        placeholder="Contoh: Nasi Putih, Ayam Panggang, Sayur Campur, Air Sirap"
+                      <input
+                        type="text"
+                        placeholder="Contoh: Ayam Panggang / Air Sirap / Set Buah-Buahan"
                         value={item.description}
                         onChange={(e) =>
                           handleItemChange(index, "description", e.target.value)
