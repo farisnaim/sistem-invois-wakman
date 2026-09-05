@@ -368,11 +368,12 @@ export default function PublicInvoicePage({
 
         {/* NOTA & RINGKASAN KEWANGAN */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 items-start">
-          <div className="text-xs space-y-1">
+          {/* BAHAGIAN NOTA DENGAN BACKGROUND SLATE NIPIS */}
+          <div className="text-xs space-y-1 bg-slate-50/80 p-3.5 rounded-xl border border-slate-200/80">
             <p className="font-bold text-slate-400 uppercase tracking-wider text-[10px]">
               NOTA:
             </p>
-            <p className="text-slate-600 whitespace-pre-line leading-relaxed">
+            <p className="text-slate-700 whitespace-pre-line leading-relaxed font-normal">
               {invoice.notes || "Terima kasih atas urus niaga anda."}
             </p>
           </div>
@@ -408,8 +409,8 @@ export default function PublicInvoicePage({
 
         {/* NOTA KAKI */}
         <div className="pt-6 border-t border-slate-100 text-center text-[11px] text-slate-400">
-          Invois ini dijana secara komputer.Tidak memerlukan tandatangan. Terima
-          kasih atas urus niaga anda.
+          Invois ini dijana secara komputer. Tidak memerlukan tandatangan.
+          Terima kasih atas urus niaga anda.
         </div>
       </div>
     </main>
