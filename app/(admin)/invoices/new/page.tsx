@@ -335,11 +335,14 @@ export default function NewInvoicePage() {
     const customerName = selectedCustomerObj?.name || "Pelanggan";
     const programTitle = title ? `\n📌 *Program/Tujuan:* ${title}` : "";
 
+    // Dapatkan URL domain semasa secara dinamik untuk pautan gambar QR
+    const qrImageUrl = `${window.location.origin}/QR_BIMB_WakMan.jpeg`;
+
     const message = `Salam ${customerName},\n\nTerima kasih atas pesanan anda. Ini adalah invois bagi rujukan dan bayaran anda:${programTitle}\n\n🗒️ *No. Invois:* ${invoiceNumber}\n💰 *Jumlah:* RM ${totalAmount.toFixed(
       2,
     )}\n⏳ *Baki Perlu Dibayar:* RM ${balanceDue.toFixed(
       2,
-    )}\n\nBoleh lihat butiran lanjut di pautan ini:\n${createdInvoiceUrl}\n\nTerima kasih! \n\nJika mahu membuat pembayaran melalui bank Transfer, saya sertakan detail bank di bawah:\n\nBank Islam Berhad\nKamaruzaman Bin Zainuddin\n12074010022447`;
+    )}\n\n📄 *Pautan Invois:* \n${createdInvoiceUrl}\n\n🖼️ *Pautan QR Code Pembayaran:* \n${qrImageUrl}\n\n------------------------------\n💳 *MAKLUMAT BANK*\nBank Islam Berhad\nKamaruzaman Bin Zainuddin\n12074010022447`;
 
     window.open(
       `https://wa.me/${rawPhone}?text=${encodeURIComponent(message)}`,
