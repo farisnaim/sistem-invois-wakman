@@ -58,13 +58,13 @@ export default function NewInvoicePage() {
   // Kewangan & Nota
   const [deposit, setDeposit] = useState<number>(0);
   const [notes, setNotes] = useState<string>(
-    "Sedap bagitahu kawan, Tak sedap bagitahu kami.🤙 Terima kasih atas urus niaga anda. Bayaran boleh dibuat memalui QR atau Bank Transfer",
+    "Sedap bagitahu kawan, Tak sedap bagitahu kami.🤙 Terima kasih atas urus niaga anda. Bayaran boleh dibuat melalui QR atau Bank Transfer",
   );
 
   // Item Invois
   const [items, setItems] = useState<InvoiceItemInput[]>([
     {
-      description: "Nasi Putih, Ayam Panggang, Sayur Campur, Air Sirap",
+      description: "Nasi Ambeng",
       quantity: 1,
       unit_price: 0,
       amount: 0,
